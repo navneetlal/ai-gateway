@@ -22,15 +22,7 @@ export const handleProviderRequest = async (
   const handler = PROVIDER_HANDLERS[provider]
 
   if (!handler) {
-    const payload = {
-      error: `Unsupported provider: ${provider}`,
-      supportedProviders: PROVIDERS,
-    }
-    if (typeof reply.badRequest === 'function') {
-      reply.badRequest(payload as any)
-    } else {
-      reply.status(400).send(payload)
-    }
+    reply.badRequest(`Unsupported provider: ${provider}. Supported: ${PROVIDERS.join(', ')}`)
     return
   }
 

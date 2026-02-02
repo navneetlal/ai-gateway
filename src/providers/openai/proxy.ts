@@ -86,7 +86,7 @@ export const proxyOpenAI = async (
   reply: FastifyReply,
   path: string
 ): Promise<void> => {
-  const { apiKey } = INTERNAL_PROVIDER_CONFIG.openai
+  const { apiKey, organization, project, beta } = INTERNAL_PROVIDER_CONFIG.openai
   if (!apiKey) {
     reply.internalServerError('OpenAI API key not configured')
     return
@@ -94,15 +94,30 @@ export const proxyOpenAI = async (
 
   const targetUrl = buildTargetUrl(request, path)
   const headers = buildProxyHeaders(request.headers, apiKey)
+  if (organization && !headers.has('OpenAI-Organization')) {
+    headers.set('OpenAI-Organization', organization)
+  }
+  if (project && !headers.has('OpenAI-Project')) {
+    headers.set('OpenAI-Project', project)
+  }
+  if (beta && !headers.has('OpenAI-Beta')) {
+    headers.set('OpenAI-Beta', beta)
+  }
   const contentType = headers.get('content-type')
   const body = buildProxyBody(request, contentType, path)
 
-  const response = await fetch(targetUrl, {
-    method: request.method,
-    headers,
-    body: body as any,
-    ...(body === request.raw ? { duplex: 'half' } : {}),
-  })
+  let response: Response
+  try {
+    response = await fetch(targetUrl, {
+      method: request.method,
+      headers,
+      body: body as any,
+      ...(body === request.raw ? { duplex: 'half' } : {}),
+    })
+  } catch (error) {
+    reply.internalServerError(`OpenAI request failed: ${(error as Error).message}`)
+    return
+  }
 
   applyResponseHeaders(reply, response)
   reply.status(response.status)

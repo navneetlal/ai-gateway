@@ -1,11 +1,10 @@
 import { FastifyPluginAsync } from 'fastify'
 
+import { handleProviderRequest } from '../../providers/provider-router'
+
 const models: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
-  fastify.get('/models', async function () {
-    return {
-      object: 'list',
-      data: []
-    }
+  fastify.get('/models', async function (request, reply) {
+    return handleProviderRequest(request, reply, '/models')
   })
 }
 

@@ -148,6 +148,15 @@ These endpoints are enabled only when running the Node server without
 - `POST /v1/audio/translations`
   - Parses multipart form-data and routes to providers as `createTranslation`.
 
+### Models API
+
+- `GET /v1/models`
+  - If a provider/config/virtual key is present, it falls through to the
+    standard gateway routing for models.
+  - If not, it proxies to the control-plane models endpoint using
+    `ALBUS_BASEPATH`, translating `/v1/models` to `/v2/models` and passing the
+    gateway API key.
+
 ### Anthropic-compatible APIs
 
 - `POST /v1/messages`

@@ -5,7 +5,7 @@
   "main": "src/index.ts",
   "repository": "https://github.com/navneetlal/ai-gateway.git",
   "author": "Navneet Lal Gupta <navneetlalg@gmail.com>",
-  "license": "MIT",
+  "license": "AGPL-3.0",
   "private": true,
   "scripts": {
     "test": "npm run build:ts && tsc -p test/tsconfig.json && c8 node --test -r ts-node/register \"test/**/*.ts\"",

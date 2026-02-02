@@ -10,7 +10,7 @@ const transcriptions: FastifyPluginAsync = async (fastify, opts): Promise<void> 
       return
     }
 
-    return handleProviderRequest(request, reply, '/audio/transcriptions')
+    return handleProviderRequest(request, reply)
   })
 }
 

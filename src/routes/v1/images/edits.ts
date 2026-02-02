@@ -10,7 +10,7 @@ const edits: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       return
     }
 
-    return handleProviderRequest(request, reply, '/images/edits')
+    return handleProviderRequest(request, reply)
   })
 }
 

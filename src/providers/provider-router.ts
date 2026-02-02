@@ -5,10 +5,17 @@ import { resolveProviderFromHeaders } from './utils'
 
 const DEFAULT_PROVIDER: ProviderKey = 'openai'
 
+const resolveRequestPath = (request: FastifyRequest): string => {
+  try {
+    return new URL(request.url, 'http://localhost').pathname
+  } catch {
+    return request.url
+  }
+}
+
 export const handleProviderRequest = async (
   request: FastifyRequest,
-  reply: FastifyReply,
-  path: string
+  reply: FastifyReply
 ): Promise<void> => {
   const resolved = resolveProviderFromHeaders(request.headers)
   const provider = (resolved ?? DEFAULT_PROVIDER) as ProviderKey
@@ -27,5 +34,6 @@ export const handleProviderRequest = async (
     return
   }
 
+  const path = resolveRequestPath(request)
   return handler(request, reply, path)
 }

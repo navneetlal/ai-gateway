@@ -10,7 +10,7 @@ const embeddings: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       return
     }
 
-    return handleProviderRequest(request, reply, '/embeddings')
+    return handleProviderRequest(request, reply)
   })
 }
 

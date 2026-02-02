@@ -10,7 +10,7 @@ const generations: FastifyPluginAsync = async (fastify, opts): Promise<void> => 
       return
     }
 
-    return handleProviderRequest(request, reply, '/images/generations')
+    return handleProviderRequest(request, reply)
   })
 }
 

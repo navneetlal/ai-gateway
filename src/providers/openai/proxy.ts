@@ -3,6 +3,7 @@ import { Readable } from 'node:stream'
 import { FastifyReply, FastifyRequest } from 'fastify'
 
 import { INTERNAL_PROVIDER_CONFIG } from '../../config/internal'
+import { PROVIDER_PATHS } from '../../config/provider-mapping'
 import { buildProxyHeaders } from '../utils'
 
 const RESPONSE_HOP_BY_HOP_HEADERS = new Set([
@@ -11,25 +12,55 @@ const RESPONSE_HOP_BY_HOP_HEADERS = new Set([
   'content-length',
 ])
 
+const resolveProviderPath = (path: string): string => {
+  const providerPaths = PROVIDER_PATHS.openai as Record<string, string>
+  return providerPaths[path] ?? path
+}
+
 const buildTargetUrl = (request: FastifyRequest, path: string): string => {
   const { baseUrl } = INTERNAL_PROVIDER_CONFIG.openai
-  const targetUrl = new URL(path, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`)
+  const providerPath = resolveProviderPath(path)
+  const targetUrl = new URL(
+    providerPath,
+    baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
+  )
   const incomingUrl = new URL(request.url, 'http://localhost')
   targetUrl.search = incomingUrl.search
   return targetUrl.toString()
 }
 
+const transformRequestBody = (path: string, body: unknown): unknown => {
+  switch (path) {
+    case '/v1/chat/completions':
+    case '/v1/completions':
+    case '/v1/embeddings':
+    case '/v1/images/generations':
+    case '/v1/images/edits':
+    case '/v1/audio/speech':
+    case '/v1/audio/transcriptions':
+    case '/v1/audio/translations':
+      return body
+    default:
+      return body
+  }
+}
+
 const buildProxyBody = (
   request: FastifyRequest,
-  contentType: string | null
+  contentType: string | null,
+  path: string
 ): string | Buffer | FastifyRequest['raw'] | undefined => {
   if (request.method === 'GET' || request.method === 'HEAD') {
     return undefined
   }
 
+  if (contentType?.includes('multipart/form-data')) {
+    return request.raw
+  }
+
   const body = request.body
   if (body === undefined || body === null) {
-    return request.raw
+    return undefined
   }
 
   if (typeof body === 'string' || Buffer.isBuffer(body)) {
@@ -37,10 +68,10 @@ const buildProxyBody = (
   }
 
   if (contentType?.includes('application/json')) {
-    return JSON.stringify(body)
+    return JSON.stringify(transformRequestBody(path, body))
   }
 
-  return JSON.stringify(body)
+  return JSON.stringify(transformRequestBody(path, body))
 }
 
 const applyResponseHeaders = (reply: FastifyReply, response: Response): void => {
@@ -64,7 +95,7 @@ export const proxyOpenAI = async (
   const targetUrl = buildTargetUrl(request, path)
   const headers = buildProxyHeaders(request.headers, apiKey)
   const contentType = headers.get('content-type')
-  const body = buildProxyBody(request, contentType)
+  const body = buildProxyBody(request, contentType, path)
 
   const response = await fetch(targetUrl, {
     method: request.method,

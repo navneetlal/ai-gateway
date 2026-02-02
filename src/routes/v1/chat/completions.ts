@@ -10,7 +10,7 @@ const completions: FastifyPluginAsync = async (fastify, opts): Promise<void> => 
       return
     }
 
-    return handleProviderRequest(request, reply, '/chat/completions')
+    return handleProviderRequest(request, reply)
   })
 }
 

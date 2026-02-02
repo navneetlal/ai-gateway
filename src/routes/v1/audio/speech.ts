@@ -10,7 +10,7 @@ const speech: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       return
     }
 
-    return handleProviderRequest(request, reply, '/audio/speech')
+    return handleProviderRequest(request, reply)
   })
 }
 

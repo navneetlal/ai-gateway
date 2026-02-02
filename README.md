@@ -2,6 +2,9 @@
 
 A unified API gateway for LLM providers. Route requests to OpenAI, Anthropic, and other LLM providers through a single OpenAI-compatible API interface.
 
+> **Warning**
+> This project is currently in **beta**. APIs may change, and it is not yet recommended for production use. Use at your own risk and please report any issues you encounter.
+
 ## Features
 
 - **OpenAI-compatible API**: Use familiar OpenAI API format with any supported provider

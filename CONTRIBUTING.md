@@ -7,7 +7,7 @@ Thank you for your interest in contributing to AI Gateway! This document provide
 1. Fork the repository
 2. Clone your fork:
    ```bash
-   git clone https://github.com/<your-username>/ai-gateway.git
+   git clone https://github.com/navneetlal/ai-gateway.git
    cd ai-gateway
    ```
 3. Install dependencies:

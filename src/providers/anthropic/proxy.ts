@@ -293,8 +293,16 @@ const transformToAnthropic = (body: any): any => {
 
 const mapStopReason = (reason?: string): string | null => {
   if (!reason) return null
-  if (reason === 'max_tokens') return 'length'
-  return 'stop'
+  switch (reason) {
+    case 'max_tokens':
+      return 'length'
+    case 'tool_use':
+      return 'tool_calls'
+    case 'end_turn':
+    case 'stop_sequence':
+    default:
+      return 'stop'
+  }
 }
 
 const transformToOpenAI = (response: any): any => {

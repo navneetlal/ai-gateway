@@ -10,4 +10,7 @@ export const PROVIDER_PATHS: Record<string, Record<string, string>> = {
     '/v1/audio/translations': '/audio/translations',
     '/v1/models': '/models',
   },
+  anthropic: {
+    '/v1/chat/completions': '/messages',
+  },
 }

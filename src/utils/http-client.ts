@@ -1,10 +1,13 @@
 import ky, { Options } from 'ky'
 
+import { CircuitBreaker } from './circuit-breaker'
+
 export type RetryOptions = {
   retries?: number
   minDelayMs?: number
   maxDelayMs?: number
   retryOnStatusCodes?: number[]
+  circuitBreaker?: CircuitBreaker
 }
 
 const DEFAULT_RETRY_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504])
@@ -38,15 +41,27 @@ export const requestWithRetry = async (
   const retries = retryOptions.retries ?? DEFAULT_RETRIES
   const minDelayMs = retryOptions.minDelayMs ?? DEFAULT_MIN_DELAY_MS
   const maxDelayMs = retryOptions.maxDelayMs ?? DEFAULT_MAX_DELAY_MS
+  const breaker = retryOptions.circuitBreaker
 
   let lastError: unknown
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
+      if (breaker && !breaker.canRequest()) {
+        throw new Error(`Circuit open for ${breaker.state.name}`)
+      }
+
       const response = await ky(url, {
         ...options,
         throwHttpErrors: false,
       })
+
+      if (response.ok) {
+        breaker?.onSuccess()
+        return response
+      }
+
+      breaker?.onFailure()
 
       if (!shouldRetryStatus(response.status, retryOptions.retryOnStatusCodes)) {
         return response
@@ -59,6 +74,7 @@ export const requestWithRetry = async (
       await response.arrayBuffer().catch(() => undefined)
     } catch (error) {
       lastError = error
+      breaker?.onFailure()
       if (attempt >= retries) {
         throw error
       }

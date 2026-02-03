@@ -4,10 +4,13 @@ import { FastifyReply, FastifyRequest } from 'fastify'
 
 import { INTERNAL_PROVIDER_CONFIG } from '../../config/internal'
 import { PROVIDER_PATHS } from '../../config/provider-mapping'
+import { createCircuitBreaker } from '../../utils/circuit-breaker'
 import { requestWithRetry } from '../../utils/http-client'
 import { buildProxyHeaders } from '../../utils/providers'
 
 const SYSTEM_MESSAGE_ROLES = new Set(['system'])
+
+const anthropicCircuitBreaker = createCircuitBreaker({ name: 'anthropic' })
 
 const fileExtensionMimeTypeMap = {
   pdf: 'application/pdf',
@@ -558,11 +561,15 @@ export const proxyAnthropic = async (
 
   let response: Response
   try {
-    response = await requestWithRetry(targetUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    })
+    response = await requestWithRetry(
+      targetUrl,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      },
+      { circuitBreaker: anthropicCircuitBreaker }
+    )
   } catch (error) {
     reply.internalServerError(`Anthropic request failed: ${(error as Error).message}`)
     return

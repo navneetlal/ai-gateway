@@ -4,6 +4,7 @@ import { FastifyReply, FastifyRequest } from 'fastify'
 
 import { INTERNAL_PROVIDER_CONFIG } from '../../config/internal'
 import { PROVIDER_PATHS } from '../../config/provider-mapping'
+import { createCircuitBreaker } from '../../utils/circuit-breaker'
 import { requestWithRetry } from '../../utils/http-client'
 import { buildProxyHeaders } from '../../utils/providers'
 
@@ -12,6 +13,8 @@ const RESPONSE_HOP_BY_HOP_HEADERS = new Set([
   'transfer-encoding',
   'content-length',
 ])
+
+const openAiCircuitBreaker = createCircuitBreaker({ name: 'openai' })
 
 const resolveProviderPath = (path: string): string => {
   const providerPaths = PROVIDER_PATHS.openai as Record<string, string>
@@ -107,7 +110,10 @@ export const proxyOpenAI = async (
   const contentType = headers.get('content-type')
   const body = buildProxyBody(request, contentType, path)
 
-  const retryOptions = body === request.raw ? { retries: 0 } : undefined
+  const retryOptions =
+    body === request.raw
+      ? { retries: 0, circuitBreaker: openAiCircuitBreaker }
+      : { circuitBreaker: openAiCircuitBreaker }
 
   let response: Response
   try {

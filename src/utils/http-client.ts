@@ -67,6 +67,7 @@ export const requestWithRetry = async (
         ...options,
         timeout: timeoutMs,
         throwHttpErrors: false,
+        retry: 0, // Disable ky's built-in retry, we handle retries ourselves
       })
 
       if (response.ok) {

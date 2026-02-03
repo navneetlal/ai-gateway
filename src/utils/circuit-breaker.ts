@@ -157,6 +157,7 @@ export class CircuitBreaker {
         this.snapshot.state.halfOpen = true
         this.snapshot.status.halfOpenAttempts = 1
         this.persist()
+        this.log('info', 'Circuit breaker half-open after cooldown, allowing test requests')
         return true
       }
       return false
@@ -190,11 +191,6 @@ export class CircuitBreaker {
         status.halfOpenAttempts = 0
         this.persist()
       }
-      return
-    }
-
-    if (this.snapshot.state.open) {
-      this.toHalfOpen()
       return
     }
 

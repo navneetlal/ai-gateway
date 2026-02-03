@@ -22,7 +22,7 @@
     "@fastify/request-context": "^6.2.1",
     "@fastify/sensible": "^6.0.4",
     "@fastify/sse": "^0.4.0",
-    "fastify": "^5.7.2",
+    "fastify": "^5.7.3",
     "fastify-plugin": "^5.1.0",
     "ky": "^1.14.3",
     "zod": "^4.3.6"

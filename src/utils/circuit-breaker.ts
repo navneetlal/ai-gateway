@@ -247,14 +247,6 @@ export class CircuitBreaker {
     })
   }
 
-  private toHalfOpen(): void {
-    this.snapshot.state.closed = false
-    this.snapshot.state.open = false
-    this.snapshot.state.halfOpen = true
-    this.persist()
-    this.log('info', 'Circuit breaker half-open, allowing test requests')
-  }
-
   private toClosed(): void {
     this.snapshot.state.closed = true
     this.snapshot.state.open = false

@@ -8,6 +8,7 @@ export type RetryOptions = {
   retries?: number
   minDelayMs?: number
   maxDelayMs?: number
+  timeoutMs?: number
   retryOnStatusCodes?: number[]
   circuitBreaker?: CircuitBreaker
   logger?: FastifyBaseLogger
@@ -17,6 +18,7 @@ const DEFAULT_RETRY_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 5
 const DEFAULT_RETRIES = 2
 const DEFAULT_MIN_DELAY_MS = 250
 const DEFAULT_MAX_DELAY_MS = 2000
+const DEFAULT_TIMEOUT_MS = 60_000
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -44,6 +46,7 @@ export const requestWithRetry = async (
   const retries = retryOptions.retries ?? DEFAULT_RETRIES
   const minDelayMs = retryOptions.minDelayMs ?? DEFAULT_MIN_DELAY_MS
   const maxDelayMs = retryOptions.maxDelayMs ?? DEFAULT_MAX_DELAY_MS
+  const timeoutMs = retryOptions.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const breaker = retryOptions.circuitBreaker
   const log = retryOptions.logger ?? getLogger()
 
@@ -62,6 +65,7 @@ export const requestWithRetry = async (
 
       const response = await ky(url, {
         ...options,
+        timeout: timeoutMs,
         throwHttpErrors: false,
       })
 

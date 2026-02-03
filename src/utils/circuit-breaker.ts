@@ -46,7 +46,7 @@ export type CircuitBreakerStore = {
 const DEFAULT_FAILURE_THRESHOLD = 5
 const DEFAULT_SUCCESS_THRESHOLD = 2
 const DEFAULT_COOLDOWN_MS = 10_000
-const DEFAULT_HALF_OPEN_MAX_ATTEMPTS = 1
+const DEFAULT_HALF_OPEN_MAX_ATTEMPTS = 3
 
 const now = (): number => Date.now()
 
@@ -186,6 +186,8 @@ export class CircuitBreaker {
       if (status.consecutiveSuccesses >= this.config.successThreshold) {
         this.toClosed()
       } else {
+        // Reset halfOpenAttempts to allow more test requests
+        status.halfOpenAttempts = 0
         this.persist()
       }
       return

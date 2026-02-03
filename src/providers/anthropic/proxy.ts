@@ -6,7 +6,7 @@ import { INTERNAL_PROVIDER_CONFIG } from '../../config/internal'
 import { PROVIDER_PATHS } from '../../config/provider-mapping'
 import { createCircuitBreaker } from '../../utils/circuit-breaker'
 import { requestWithRetry } from '../../utils/http-client'
-import { buildProxyHeaders } from '../../utils/providers'
+import { buildProxyHeaders, hasFailoverHeader } from '../../utils/providers'
 
 const SYSTEM_MESSAGE_ROLES = new Set(['system'])
 
@@ -531,12 +531,22 @@ export const proxyAnthropic = async (
   path: string
 ): Promise<void> => {
   const { apiKey, version, beta } = INTERNAL_PROVIDER_CONFIG.anthropic
+  const failoverRequested = hasFailoverHeader(request.headers)
+
   if (!apiKey) {
+    request.log.error('Anthropic API key not configured')
+    if (failoverRequested) {
+      throw new Error('Anthropic API key not configured')
+    }
     reply.internalServerError('Anthropic API key not configured')
     return
   }
 
   if (path !== '/v1/chat/completions') {
+    request.log.warn({ path }, 'Unsupported Anthropic path requested')
+    if (failoverRequested) {
+      throw new Error('Unsupported anthropic path')
+    }
     reply.badRequest('Unsupported anthropic path')
     return
   }
@@ -559,6 +569,8 @@ export const proxyAnthropic = async (
 
   const payload = transformToAnthropic(cleanedBody)
 
+  request.log.debug({ targetUrl, isStreaming, path }, 'Proxying request to Anthropic')
+
   let response: Response
   try {
     response = await requestWithRetry(
@@ -568,20 +580,33 @@ export const proxyAnthropic = async (
         headers,
         body: JSON.stringify(payload),
       },
-      { circuitBreaker: anthropicCircuitBreaker }
+      { circuitBreaker: anthropicCircuitBreaker, logger: request.log }
     )
   } catch (error) {
+    request.log.error({ error: (error as Error).message, path }, 'Anthropic request failed')
+    if (failoverRequested) {
+      throw error
+    }
     reply.internalServerError(`Anthropic request failed: ${(error as Error).message}`)
     return
   }
 
+  request.log.debug({ status: response.status, path }, 'Anthropic response received')
+
   if (!response.ok) {
+    if (failoverRequested && response.status >= 500) {
+      request.log.warn({ status: response.status, path }, 'Anthropic returned 5xx, triggering failover')
+      await response.arrayBuffer().catch(() => undefined)
+      throw new Error(`Anthropic request failed with status ${response.status}`)
+    }
+    request.log.warn({ status: response.status, path }, 'Anthropic returned error response')
     const errorPayload = await response.json().catch(() => null)
     reply.status(response.status).send(errorPayload ?? { error: 'Anthropic request failed' })
     return
   }
 
   if (isStreaming) {
+    request.log.debug({ path }, 'Streaming Anthropic response')
     await streamAnthropicToOpenAI(response, reply)
     return
   }

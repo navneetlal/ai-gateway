@@ -1,3 +1,5 @@
+import { getLogger } from './logger'
+
 export type CircuitBreakerState = {
   enabled: boolean
   name: string
@@ -150,8 +152,10 @@ export class CircuitBreaker {
     if (open) {
       const cooldownUntil = this.snapshot.cooldownUntil ?? 0
       if (now() >= cooldownUntil) {
-        this.toHalfOpen()
-        this.snapshot.status.halfOpenAttempts += 1
+        this.snapshot.state.closed = false
+        this.snapshot.state.open = false
+        this.snapshot.state.halfOpen = true
+        this.snapshot.status.halfOpenAttempts = 1
         this.persist()
         return true
       }
@@ -239,6 +243,10 @@ export class CircuitBreaker {
     this.snapshot.status.halfOpenAttempts = 0
     this.snapshot.cooldownUntil = now() + this.config.cooldownMs
     this.persist()
+    this.log('warn', 'Circuit breaker opened', {
+      consecutiveFailures: this.snapshot.status.consecutiveFailures,
+      cooldownMs: this.config.cooldownMs,
+    })
   }
 
   private toHalfOpen(): void {
@@ -246,6 +254,7 @@ export class CircuitBreaker {
     this.snapshot.state.open = false
     this.snapshot.state.halfOpen = true
     this.persist()
+    this.log('info', 'Circuit breaker half-open, allowing test requests')
   }
 
   private toClosed(): void {
@@ -257,10 +266,20 @@ export class CircuitBreaker {
     this.snapshot.status.consecutiveSuccesses = 0
     this.snapshot.status.halfOpenAttempts = 0
     this.persist()
+    this.log('info', 'Circuit breaker closed, resuming normal operation')
   }
 
   private persist(): void {
     this.store.set(this.config.name, this.snapshot)
+  }
+
+  private log(level: 'info' | 'warn' | 'error' | 'debug', message: string, extra?: Record<string, unknown>): void {
+    try {
+      const logger = getLogger()
+      logger[level]({ circuit: this.config.name, ...extra }, message)
+    } catch {
+      // Logger not initialized yet, skip logging
+    }
   }
 }
 

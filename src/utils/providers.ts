@@ -53,3 +53,20 @@ export const resolveProviderFromHeaders = (
 
   return undefined
 }
+
+export const resolveFailoverProvidersFromHeaders = (
+  incoming: Record<string, string | string[] | undefined>
+): string[] => {
+  const header = incoming[HEADER_KEYS.FAILOVER]
+  if (!header) return []
+
+  const raw = Array.isArray(header) ? header.join(',') : header
+  return raw
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => value.length > 0)
+}
+
+export const hasFailoverHeader = (
+  incoming: Record<string, string | string[] | undefined>
+): boolean => resolveFailoverProvidersFromHeaders(incoming).length > 0

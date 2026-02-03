@@ -2,18 +2,37 @@ import { join } from 'node:path'
 import AutoLoad, { AutoloadPluginOptions } from '@fastify/autoload'
 import { FastifyPluginAsync, FastifyServerOptions } from 'fastify'
 
+import { initLogger } from './utils/logger'
+
 export interface AppOptions extends FastifyServerOptions, Partial<AutoloadPluginOptions> {
 
 }
+
+const LOG_LEVEL = process.env.LOG_LEVEL ?? 'info'
+
 // Pass --options via CLI arguments in command to enable these options.
 const options: AppOptions = {
+  logger: {
+    level: LOG_LEVEL,
+    transport:
+      process.env.NODE_ENV !== 'production'
+        ? {
+            target: 'pino-pretty',
+            options: {
+              translateTime: 'HH:MM:ss Z',
+              ignore: 'pid,hostname',
+            },
+          }
+        : undefined,
+  },
 }
 
 const app: FastifyPluginAsync<AppOptions> = async (
   fastify,
   opts
 ): Promise<void> => {
-  // Place here your custom code!
+  // Initialize global logger for use outside request context
+  initLogger(fastify.log)
 
   // Do not touch the following lines
 

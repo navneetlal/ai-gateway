@@ -6,7 +6,7 @@ import { INTERNAL_PROVIDER_CONFIG } from '../../config/internal'
 import { PROVIDER_PATHS } from '../../config/provider-mapping'
 import { createCircuitBreaker } from '../../utils/circuit-breaker'
 import { requestWithRetry } from '../../utils/http-client'
-import { buildProxyHeaders } from '../../utils/providers'
+import { buildProxyHeaders, hasFailoverHeader } from '../../utils/providers'
 
 const RESPONSE_HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -91,7 +91,13 @@ export const proxyOpenAI = async (
   path: string
 ): Promise<void> => {
   const { apiKey, organization, project, beta } = INTERNAL_PROVIDER_CONFIG.openai
+  const failoverRequested = hasFailoverHeader(request.headers)
+
   if (!apiKey) {
+    request.log.error('OpenAI API key not configured')
+    if (failoverRequested) {
+      throw new Error('OpenAI API key not configured')
+    }
     reply.internalServerError('OpenAI API key not configured')
     return
   }
@@ -112,8 +118,10 @@ export const proxyOpenAI = async (
 
   const retryOptions =
     body === request.raw
-      ? { retries: 0, circuitBreaker: openAiCircuitBreaker }
-      : { circuitBreaker: openAiCircuitBreaker }
+      ? { retries: 0, circuitBreaker: openAiCircuitBreaker, logger: request.log }
+      : { circuitBreaker: openAiCircuitBreaker, logger: request.log }
+
+  request.log.debug({ targetUrl, method: request.method, path }, 'Proxying request to OpenAI')
 
   let response: Response
   try {
@@ -128,8 +136,20 @@ export const proxyOpenAI = async (
       retryOptions
     )
   } catch (error) {
+    request.log.error({ error: (error as Error).message, path }, 'OpenAI request failed')
+    if (failoverRequested) {
+      throw error
+    }
     reply.internalServerError(`OpenAI request failed: ${(error as Error).message}`)
     return
+  }
+
+  request.log.debug({ status: response.status, path }, 'OpenAI response received')
+
+  if (failoverRequested && response.status >= 500) {
+    request.log.warn({ status: response.status, path }, 'OpenAI returned 5xx, triggering failover')
+    await response.arrayBuffer().catch(() => undefined)
+    throw new Error(`OpenAI request failed with status ${response.status}`)
   }
 
   applyResponseHeaders(reply, response)

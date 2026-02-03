@@ -1,6 +1,8 @@
+import { FastifyBaseLogger } from 'fastify'
 import ky, { Options } from 'ky'
 
 import { CircuitBreaker } from './circuit-breaker'
+import { getLogger } from './logger'
 
 export type RetryOptions = {
   retries?: number
@@ -8,6 +10,7 @@ export type RetryOptions = {
   maxDelayMs?: number
   retryOnStatusCodes?: number[]
   circuitBreaker?: CircuitBreaker
+  logger?: FastifyBaseLogger
 }
 
 const DEFAULT_RETRY_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504])
@@ -42,13 +45,19 @@ export const requestWithRetry = async (
   const minDelayMs = retryOptions.minDelayMs ?? DEFAULT_MIN_DELAY_MS
   const maxDelayMs = retryOptions.maxDelayMs ?? DEFAULT_MAX_DELAY_MS
   const breaker = retryOptions.circuitBreaker
+  const log = retryOptions.logger ?? getLogger()
 
   let lastError: unknown
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
+    if (breaker && !breaker.canRequest()) {
+      log.warn({ circuit: breaker.state.name, url }, 'Circuit breaker open, blocking request')
+      throw new Error(`Circuit open for ${breaker.state.name}`)
+    }
+
     try {
-      if (breaker && !breaker.canRequest()) {
-        throw new Error(`Circuit open for ${breaker.state.name}`)
+      if (attempt > 0) {
+        log.debug({ attempt, url }, 'Retrying request')
       }
 
       const response = await ky(url, {
@@ -58,26 +67,36 @@ export const requestWithRetry = async (
 
       if (response.ok) {
         breaker?.onSuccess()
+        if (attempt > 0) {
+          log.info({ attempt, status: response.status, url }, 'Request succeeded after retry')
+        }
         return response
       }
 
       breaker?.onFailure()
 
       if (!shouldRetryStatus(response.status, retryOptions.retryOnStatusCodes)) {
+        log.debug({ status: response.status, url }, 'Non-retryable status code')
         return response
       }
 
       if (attempt >= retries) {
+        log.warn({ attempt, status: response.status, url }, 'Request failed after all retries')
         return response
       }
 
+      log.debug({ attempt, status: response.status, url }, 'Retryable status code, will retry')
       await response.arrayBuffer().catch(() => undefined)
     } catch (error) {
       lastError = error
       breaker?.onFailure()
+
       if (attempt >= retries) {
+        log.error({ attempt, error: (error as Error).message, url }, 'Request failed with error after all retries')
         throw error
       }
+
+      log.debug({ attempt, error: (error as Error).message, url }, 'Request error, will retry')
     }
 
     const delayMs = computeDelay(attempt + 1, minDelayMs, maxDelayMs)

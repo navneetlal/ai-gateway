@@ -4,7 +4,8 @@ import { FastifyReply, FastifyRequest } from 'fastify'
 
 import { INTERNAL_PROVIDER_CONFIG } from '../../config/internal'
 import { PROVIDER_PATHS } from '../../config/provider-mapping'
-import { buildProxyHeaders } from '../utils'
+import { requestWithRetry } from '../../utils/http-client'
+import { buildProxyHeaders } from '../../utils/providers'
 
 const RESPONSE_HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -106,14 +107,20 @@ export const proxyOpenAI = async (
   const contentType = headers.get('content-type')
   const body = buildProxyBody(request, contentType, path)
 
+  const retryOptions = body === request.raw ? { retries: 0 } : undefined
+
   let response: Response
   try {
-    response = await fetch(targetUrl, {
-      method: request.method,
-      headers,
-      body: body as any,
-      ...(body === request.raw ? { duplex: 'half' } : {}),
-    })
+    response = await requestWithRetry(
+      targetUrl,
+      {
+        method: request.method,
+        headers,
+        body: body as any,
+        ...(body === request.raw ? { duplex: 'half' } : {}),
+      },
+      retryOptions
+    )
   } catch (error) {
     reply.internalServerError(`OpenAI request failed: ${(error as Error).message}`)
     return

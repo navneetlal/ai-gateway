@@ -4,7 +4,8 @@ import { FastifyReply, FastifyRequest } from 'fastify'
 
 import { INTERNAL_PROVIDER_CONFIG } from '../../config/internal'
 import { PROVIDER_PATHS } from '../../config/provider-mapping'
-import { buildProxyHeaders } from '../utils'
+import { requestWithRetry } from '../../utils/http-client'
+import { buildProxyHeaders } from '../../utils/providers'
 
 const SYSTEM_MESSAGE_ROLES = new Set(['system'])
 
@@ -557,7 +558,7 @@ export const proxyAnthropic = async (
 
   let response: Response
   try {
-    response = await fetch(targetUrl, {
+    response = await requestWithRetry(targetUrl, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),

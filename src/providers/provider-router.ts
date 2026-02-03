@@ -1,7 +1,7 @@
 import { FastifyReply, FastifyRequest } from 'fastify'
 
 import { PROVIDER_HANDLERS, PROVIDERS, ProviderKey } from './registry'
-import { resolveProviderFromHeaders } from './utils'
+import { resolveProviderFromHeaders } from '../utils/providers'
 
 const DEFAULT_PROVIDER: ProviderKey = 'openai'
 

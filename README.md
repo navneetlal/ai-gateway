@@ -13,6 +13,10 @@ A unified API gateway for LLM providers. Route requests to OpenAI, Anthropic, an
 - **Streaming support**: Full SSE streaming for chat completions
 - **Tool/function calling**: Unified tool calling across providers
 - **Multimodal support**: Images and files work across providers
+- **Automatic retries**: Exponential backoff with jitter for transient failures
+- **Circuit breaker**: Fail-fast when providers are unhealthy
+- **Provider failover**: Automatic fallback to secondary providers on failure
+- **Structured logging**: Configurable log levels with request tracing
 
 ## Supported Providers
 
@@ -56,6 +60,9 @@ ANTHROPIC_API_KEY=sk-ant-...
 ANTHROPIC_BASE_URL=https://api.anthropic.com/v1  # optional
 ANTHROPIC_VERSION=2023-06-01                      # optional
 ANTHROPIC_BETA=messages-2023-12-15                # optional
+
+# Logging
+LOG_LEVEL=info  # trace, debug, info, warn, error, fatal
 ```
 
 ## API Routes
@@ -171,6 +178,67 @@ The gateway automatically transforms:
 - Stop sequences → `stop_sequences`
 - Response format → OpenAI-compatible format
 
+## Resilience Features
+
+### Automatic Retries
+
+Failed requests are automatically retried with exponential backoff:
+- Default: 2 retries
+- Backoff: 250ms → 500ms → 1000ms (with jitter)
+- Retried status codes: 408, 409, 425, 429, 500, 502, 503, 504
+- Request timeout: 60 seconds
+
+### Circuit Breaker
+
+Protects against cascading failures by failing fast when a provider is unhealthy:
+
+| State | Behavior |
+|-------|----------|
+| **Closed** | Normal operation, requests pass through |
+| **Open** | Requests fail immediately (10s cooldown) |
+| **Half-Open** | Limited test requests to check recovery |
+
+- Opens after 5 consecutive failures
+- Closes after 2 consecutive successes in half-open state
+
+### Provider Failover
+
+Automatically failover to backup providers when the primary fails:
+
+```bash
+curl http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "x-aigateway-provider: openai" \
+  -H "x-aigateway-failover: anthropic" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+**Headers:**
+- `x-aigateway-failover`: Comma-separated list of fallback providers
+- `x-aigateway-provider-used`: Response header indicating which provider handled the request
+
+**Failover triggers:**
+- Network errors
+- Request timeouts
+- 5xx server errors
+- Circuit breaker open
+
+**Example with multiple failovers:**
+```bash
+# Try OpenAI first, then Anthropic
+curl http://localhost:3000/v1/chat/completions \
+  -H "x-aigateway-provider: openai" \
+  -H "x-aigateway-failover: anthropic"
+```
+
+The response includes which provider was used:
+```
+x-aigateway-provider-used: anthropic
+```
+
 ## Adding New Providers
 
 To add a new provider:
@@ -240,11 +308,15 @@ src/
 │   ├── openai/
 │   │   └── proxy.ts        # OpenAI provider logic
 │   ├── provider-router.ts  # Routes requests to providers
-│   ├── registry.ts         # Provider handler registry
-│   └── utils.ts            # Shared utilities
+│   └── registry.ts         # Provider handler registry
 ├── routes/
 │   ├── root.ts             # Health check route
 │   └── v1/                 # API routes
+├── utils/
+│   ├── circuit-breaker.ts  # Circuit breaker implementation
+│   ├── http-client.ts      # HTTP client with retry logic
+│   ├── logger.ts           # Logger utilities
+│   └── providers.ts        # Provider header utilities
 ├── validation/
 │   ├── schemas.ts          # Zod request schemas
 │   └── validate.ts         # Validation utilities
